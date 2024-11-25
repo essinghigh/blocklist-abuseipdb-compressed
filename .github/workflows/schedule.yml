@@ -3,7 +3,7 @@ name: Scheduled IP Processing
 on:
   schedule:
     - cron: '0 * * * *'
-  workflow_dispatch:  # Add this line to allow manual triggering
+  workflow_dispatch:
 
 jobs:
   process_ips:
