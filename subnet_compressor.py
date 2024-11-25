@@ -1,135 +1,98 @@
-import ipaddress
-from typing import List, Tuple
-import re
-import multiprocessing as mp
-from tqdm import tqdm
 import sys
+import ipaddress
+from tqdm import tqdm
 import os
-from intervaltree import Interval, IntervalTree
+from datetime import datetime
 
-def parse_ip_list(content: str) -> List[str]:
-    ip_pattern = r'^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+def read_ips_from_file(filename):
+    """Read IP addresses from a file, ignoring comments."""
     ips = []
-    for line in content.split('\n'):
-        line = line.strip()
-        if line and not line.startswith('#'):
-            match = re.match(ip_pattern, line)
-            if match:
-                ips.append(match.group(1))
-    return sorted(list(set(ips)))
+    with open(filename, 'r', encoding='utf-8', errors='ignore') as file:
+        for line in file:
+            # Ignore comments and empty lines
+            line = line.split('#')[0].strip()
+            if line:
+                ips.append(line)
+    return ips
 
-def get_network_address(ip: str, prefix_length: int) -> str:
-    network = ipaddress.IPv4Network(f"{ip}/{prefix_length}", strict=False)
-    return str(network.network_address)
+def ip_to_cidr(ips):
+    """Convert a list of IP addresses to CIDR notation."""
+    # Convert IP strings to IP objects
+    ip_objects = [ipaddress.ip_address(ip) for ip in ips]
+    ip_objects.sort()
 
-def find_optimal_subnet_for_chunk(chunk_data: Tuple[List[str], int, int]) -> List[str]:
-    ips, start_idx, chunk_size = chunk_data
-    chunk = sorted(ips[start_idx:start_idx + chunk_size], key=lambda x: int(ipaddress.IPv4Address(x)))
-    if not chunk:
-        return []
-    optimized_subnets = []
+    cidr_list = []
     i = 0
-    while i < len(chunk):
-        current_ip = chunk[i]
-        current_ip_int = int(ipaddress.IPv4Address(current_ip))
-        j = i + 1
-        while j < len(chunk) and int(ipaddress.IPv4Address(chunk[j])) == current_ip_int + (j - i):
-            j += 1
-        first_ip = chunk[i]
-        last_ip = chunk[j - 1]
-        first_ip_int = int(ipaddress.IPv4Address(first_ip))
-        last_ip_int = int(ipaddress.IPv4Address(last_ip))
-        prefix_length = 32
-        while prefix_length > 0:
-            network = ipaddress.IPv4Network(f"{first_ip}/{prefix_length}", strict=False)
-            if int(network.network_address) == first_ip_int and int(network.broadcast_address) == last_ip_int:
-                optimized_subnets.append(f"{str(network.network_address)}/{prefix_length}")
-                break
-            prefix_length -= 1
-        i = j
-    return optimized_subnets
+    n = len(ip_objects)
 
-def merge_overlapping_subnets(subnets: List[str]) -> List[str]:
-    if not subnets:
-        return []
-    subnets = sorted(subnets, key=lambda x: int(ipaddress.IPv4Network(x).network_address))
-    merged_subnets = []
-    current_network = ipaddress.IPv4Network(subnets[0])
+    while i < n:
+        start = ip_objects[i]
+        while (i + 1 < n and int(ip_objects[i + 1]) - int(ip_objects[i]) == 1):
+            i += 1
+        end = ip_objects[i]
 
-    for subnet in subnets[1:]:
-        next_network = ipaddress.IPv4Network(subnet)
-        if current_network.overlaps(next_network):
-            combined_network = ipaddress.summarize_address_range(
-                current_network.network_address, next_network.broadcast_address)
-            current_network = list(combined_network)[0]
+        # Determine the CIDR notation
+        if start == end:
+            cidr_list.append(f"{start}/32")
         else:
-            merged_subnets.append(str(current_network))
-            current_network = next_network
-    merged_subnets.append(str(current_network))
-    return merged_subnets
+            # Calculate the CIDR block
+            cidr = ipaddress.summarize_address_range(start, end)
+            cidr_list.extend([str(c) for c in cidr])
 
+        i += 1
 
-def optimize_subnets_parallel(ips: List[str], num_processes: int = None) -> List[str]:
-    if not ips:
-        return []
-    if num_processes is None:
-        num_processes = mp.cpu_count()
-    ips = sorted(ips, key=lambda x: int(ipaddress.IPv4Address(x)))
-    chunk_size = max(1000, len(ips) // (num_processes * 4))
-    chunks = [(ips, i, chunk_size) for i in range(0, len(ips), chunk_size)]
-    with mp.Pool(processes=num_processes) as pool:
-        results = list(tqdm(pool.imap(find_optimal_subnet_for_chunk, chunks), total=len(chunks), desc="Processing IP chunks", unit="chunk"))
-    optimized_subnets = [subnet for chunk_result in results for subnet in chunk_result]
-    return sorted(optimized_subnets, key=lambda x: (int(ipaddress.IPv4Network(x).network_address), int(x.split('/')[1])))
+    return cidr_list
 
-def expand_subnets(subnets: List[str]) -> int:
-    expanded_ip_count = 0
-    for subnet in subnets:
-        network = ipaddress.IPv4Network(subnet, strict=False)
-        if network.prefixlen == 32:
-            expanded_ip_count += 1
-        else:
-            expanded_ip_count += network.num_addresses
-    return expanded_ip_count
+def count_ips_in_cidr(cidr_list):
+    """Count the total number of IPs represented by the CIDR notations."""
+    total_ips = 0
+    for cidr in cidr_list:
+        network = ipaddress.ip_network(cidr, strict=False)
+        total_ips += network.num_addresses
+    return total_ips
 
+def main(input_file):
+    # Read IPs from the input file
+    ips = read_ips_from_file(input_file)
 
-def main(input_content: str, num_processes: int = None) -> Tuple[List[str], dict]:
-    original_ips = parse_ip_list(input_content)
-    optimized_subnets = optimize_subnets_parallel(original_ips, num_processes=num_processes)
-    merged_subnets = merge_overlapping_subnets(optimized_subnets)
-    expanded_ip_count = expand_subnets(merged_subnets)
-    stats = {
-        "original_ip_count": len(original_ips),
-        "optimized_subnet_count": len(merged_subnets),
-        "expanded_ip_count": expanded_ip_count,
-        "compression_ratio": (len(original_ips) - len(merged_subnets)) / len(original_ips) * 100
-    }
-    return merged_subnets, stats
+    # Count original IPs
+    original_count = len(ips)
+
+    # Process IPs and convert to CIDR
+    print("Processing IP addresses...")
+    cidr_notations = ip_to_cidr(ips)
+
+    # Count expanded IPs from CIDR
+    expanded_count = count_ips_in_cidr(cidr_notations)
+    compressed_count = len(cidr_notations)
+
+    # Create output filename
+    base_name, file_ext = os.path.splitext(input_file)
+    output_file = f"{base_name}_compressed{file_ext}"
+
+    # Prepare the header for the output file
+    updated_on = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    header = (
+        f"# Original IP count: {original_count}\n"
+        f"# Compressed subnet count: {compressed_count}\n"
+        f"# Expanded IP count: {expanded_count}\n"
+        f"# Compression ratio: {compressed_count / original_count:.2f}x\n"
+        f"# Updated on: {updated_on}\n"
+    )
+
+    # Output the CIDR notations with the header
+    with open(output_file, 'w', encoding='utf-8') as file:
+        file.write(header)
+        for cidr in cidr_notations:
+            file.write(cidr + '\n')
+
+    print(header)
+    print(f"CIDR notations written to {output_file}")
 
 if __name__ == "__main__":
-    sys.setrecursionlimit(10000)
-    if len(sys.argv) == 1:
-        input_content = sys.stdin.read()
-        original_filename = "stdin"
-    else:
-        original_filename = sys.argv[1]
-        with open(original_filename, 'r', encoding='utf-8', errors='replace') as f:
-            input_content = f.read()
+    if len(sys.argv) != 2:
+        print("Usage: python file.py input.txt")
+        sys.exit(1)
 
-    optimized_subnets, stats = main(input_content, num_processes=mp.cpu_count())
-
-    print(f"\nStatistics:")
-    print(f"Original IP count: {stats['original_ip_count']:,}")
-    print(f"Optimized subnet count: {stats['optimized_subnet_count']:,}")
-    print(f"Expanded IP count: {stats['expanded_ip_count']:,}")
-    print(f"Compression ratio: {stats['compression_ratio']:.2f}%\n")
-
-    base, ext = os.path.splitext(original_filename)
-    output_filename = f"{base}_compressed{ext}"
-
-    with open(output_filename, 'w') as output_file:
-        output_file.write(f"# {output_filename} - Compressed\n# Statistics:\n# Original IP count: {stats['original_ip_count']:,}\n# Optimized subnet count: {stats['optimized_subnet_count']:,}\n# Expanded IP count: {stats['expanded_ip_count']:,}\n# Compression ratio: {stats['compression_ratio']:.2f}%\n\n")
-        for subnet in optimized_subnets:
-            output_file.write(f"{subnet}\n")
-
-    print(f"Optimized subnets written to {output_filename}")
+    input_file = sys.argv[1]
+    main(input_file)
