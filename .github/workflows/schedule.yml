@@ -25,12 +25,17 @@ jobs:
         run: |
           python subnet_compressor.py
 
+      - name: Set commit message
+        id: commit_message
+        run: |
+          echo "COMMIT_MESSAGE=️️⚡️ SYNC ⚡️ $(date +'%Y/%m/%d %H:%M')" >> $GITHUB_ENV
+
       - name: Commit and push changes
         run: |
           git config --local user.email "henry@essinghigh.dev"
           git config --local user.name "essinghigh"
           git add compressed/
-          git commit -m "Update compressed IP files" || echo "No changes to commit"
+          git commit -m "${{ env.COMMIT_MESSAGE }}" || echo "No changes to commit"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
