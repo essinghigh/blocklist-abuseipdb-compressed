@@ -1,0 +1,36 @@
+name: Scheduled IP Processing
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  process_ips:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run the IP processing script
+        run: |
+          python subnet_compressor.py
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "henry@essinghigh.dev"
+          git config --local user.name "essinghigh"
+          git add compressed/
+          git commit -m "Update compressed IP files" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
