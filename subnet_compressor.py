@@ -3,7 +3,6 @@ import os
 import requests
 from datetime import datetime
 
-# List of URLs to download the .ipv4 files
 IPV4_URLS = [
     "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/refs/heads/main/abuseipdb-s100-120d.ipv4",
     "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/refs/heads/main/abuseipdb-s100-14d.ipv4",
@@ -17,7 +16,7 @@ IPV4_URLS = [
 ]
 
 def download_files(urls):
-    os.makedirs('downloads', exist_ok=True)  # Create a directory for downloaded files
+    os.makedirs('downloads', exist_ok=True)
     for url in urls:
         response = requests.get(url)
         if response.status_code == 200:
@@ -70,10 +69,9 @@ def process_file(input_file):
     cidr_notations = ip_to_cidr(ips)
     expanded_count = count_ips_in_cidr(cidr_notations)
     compressed_count = len(cidr_notations)
-    
-    # Get the base name and extension of the input file
+
     base_name, file_ext = os.path.splitext(os.path.basename(input_file))
-    output_file = f"compressed/{base_name}_compressed{file_ext}"  # Correctly set the output file path
+    output_file = f"compressed/{base_name}_compressed{file_ext}"
 
     updated_on = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     header = (
@@ -83,14 +81,13 @@ def process_file(input_file):
         f"# Compression ratio: {compressed_count / original_count:.2f}x\n"
         f"# Updated on: {updated_on}\n"
     )
-    os.makedirs('compressed', exist_ok=True)  # Create the output directory if it doesn't exist
+    os.makedirs('compressed', exist_ok=True)
     with open(output_file, 'w', encoding='utf-8') as file:
         file.write(header)
         for cidr in cidr_notations:
             file.write(cidr + '\n')
     print(header)
     print(f"CIDR notations written to {output_file}")
-
 
 def main():
     download_files(IPV4_URLS)
