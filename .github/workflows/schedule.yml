@@ -2,7 +2,7 @@ name: Scheduled IP Processing
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '* * * * *'
 
 jobs:
   process_ips:
