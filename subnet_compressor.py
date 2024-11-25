@@ -71,7 +71,7 @@ def process_file(input_file):
     compressed_count = len(cidr_notations)
 
     base_name, file_ext = os.path.splitext(os.path.basename(input_file))
-    output_file = f"compressed/{base_name}_compressed{file_ext}"
+    output_file = f"{base_name}_compressed{file_ext}"
 
     updated_on = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     header = (
