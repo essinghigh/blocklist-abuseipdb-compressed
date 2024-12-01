@@ -32,7 +32,7 @@ jobs:
           echo "COMMIT_MESSAGE=️️⚡️ SYNC ⚡️ $(date +'%Y/%m/%d %H:%M')" >> $GITHUB_ENV
       - name: Commit and push changes
         run: |
-          git config --local user.email "${{ env.GITHUB_ACTOR_EMAIL }}"
+          git config --local user.email "henry@essinghigh.dev"
           git config --local user.name "essinghigh"
           git add abuseipdb-s100*  # Add files matching the pattern
           git commit -m "${{ env.COMMIT_MESSAGE }}" || echo "No changes to commit"
