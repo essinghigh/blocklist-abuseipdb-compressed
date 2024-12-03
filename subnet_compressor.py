@@ -28,17 +28,14 @@ def download_files(urls):
             print(f"Failed to download: {url}")
 
 def read_ips_from_file(filename):
-    ips = []
     with open(filename, 'r', encoding='utf-8', errors='ignore') as file:
         for line in file:
             line = line.split('#')[0].strip()
             if line:
-                ips.append(line)
-    return ips
+                yield line
 
 def ip_to_cidr(ips):
-    ip_objects = (ipaddress.ip_address(ip) for ip in ips)
-    ip_objects = sorted(ip_objects)
+    ip_objects = sorted(ipaddress.ip_address(ip) for ip in ips)
     cidr_list = []
     i = 0
     n = len(ip_objects)
@@ -51,19 +48,15 @@ def ip_to_cidr(ips):
             cidr_list.append(f"{start}/32")
         else:
             cidr = ipaddress.summarize_address_range(start, end)
-            cidr_list.extend([str(c) for c in cidr])
+            cidr_list.extend(str(c) for c in cidr)
         i += 1
     return cidr_list
 
 def count_ips_in_cidr(cidr_list):
-    total_ips = 0
-    for cidr in cidr_list:
-        network = ipaddress.ip_network(cidr, strict=False)
-        total_ips += network.num_addresses
-    return total_ips
+    return sum(ipaddress.ip_network(cidr, strict=False).num_addresses for cidr in cidr_list)
 
 def process_file(input_file):
-    ips = read_ips_from_file(input_file)
+    ips = list(read_ips_from_file(input_file))
     original_count = len(ips)
     print(f"Processing {input_file}...")
     cidr_notations = ip_to_cidr(ips)
@@ -81,11 +74,9 @@ def process_file(input_file):
         f"# Compression ratio: {compressed_count / original_count:.2f}x\n"
         f"# Updated on: {updated_on}\n"
     )
-    os.makedirs('compressed', exist_ok=True)
     with open(output_file, 'w', encoding='utf-8') as file:
         file.write(header)
-        for cidr in cidr_notations:
-            file.write(cidr + '\n')
+        file.write('\n'.join(cidr_notations) + '\n')
     print(header)
     print(f"CIDR notations written to {output_file}")
 
