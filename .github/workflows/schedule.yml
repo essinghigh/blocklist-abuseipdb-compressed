@@ -1,0 +1,48 @@
+name: Scheduled IP Processing
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  process_ips:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run the IP processing script
+        run: |
+          python subnet_compressor.py
+
+      - name: Cleanup downloads folder
+        run: |
+          rm -rf downloads
+
+      - name: Set commit message
+        id: commit_message
+        run: |
+          echo "COMMIT_MESSAGE=️️⚡️ SYNC ⚡️ $(date +'%Y/%m/%d %H:%M')" >> $GITHUB_ENV
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "72340070+essinghigh@users.noreply.github.com"
+          git config --local user.name "essinghigh"
+          git checkout --orphan temp_branch
+          git add -A
+          git commit -m "${{ env.COMMIT_MESSAGE }}" || echo "No changes to commit"
+          git branch -D main
+          git branch -m main
+          git push -f origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
