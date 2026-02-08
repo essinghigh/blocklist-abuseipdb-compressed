@@ -1,0 +1,7 @@
+{
+  "pythonVersion": "3.11",
+  "stubPath": "typings",
+  "typeCheckingMode": "strict",
+  "venvPath": ".",
+  "venv": ".venv",
+}
